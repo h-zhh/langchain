@@ -8,7 +8,6 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from typing_extensions import Self
 
 DEFAULT_MODEL = "sentence-transformers/all-mpnet-base-v2"
-VALID_TASKS = ("feature-extraction",)
 
 
 class HuggingFaceEndpointEmbeddings(BaseModel, Embeddings):
@@ -81,11 +80,6 @@ class HuggingFaceEndpointEmbeddings(BaseModel, Embeddings):
                 token=huggingfacehub_api_token,
             )
 
-            if self.task not in VALID_TASKS:
-                raise ValueError(
-                    f"Got invalid task {self.task}, "
-                    f"currently only {VALID_TASKS} are supported"
-                )
             self.client = client
             self.async_client = async_client
 
@@ -108,11 +102,9 @@ class HuggingFaceEndpointEmbeddings(BaseModel, Embeddings):
         # replace newlines, which can negatively affect performance.
         texts = [text.replace("\n", " ") for text in texts]
         _model_kwargs = self.model_kwargs or {}
-        #  api doc: https://huggingface.github.io/text-embeddings-inference/#/Text%20Embeddings%20Inference/embed
-        responses = self.client.post(
-            json={"inputs": texts, **_model_kwargs}, task=self.task
-        )
-        return json.loads(responses.decode())
+        #  api doc: https://huggingface.co/docs/huggingface_hub/en/package_reference/inference_client#huggingface_hub.InferenceClient
+        responses = self.client.feature_extraction(texts, **_model_kwargs)
+        return responses.tolist()
 
     async def aembed_documents(self, texts: List[str]) -> List[List[float]]:
         """Async Call to HuggingFaceHub's embedding endpoint for embedding search docs.
@@ -126,10 +118,8 @@ class HuggingFaceEndpointEmbeddings(BaseModel, Embeddings):
         # replace newlines, which can negatively affect performance.
         texts = [text.replace("\n", " ") for text in texts]
         _model_kwargs = self.model_kwargs or {}
-        responses = await self.async_client.post(
-            json={"inputs": texts, **_model_kwargs}, task=self.task
-        )
-        return json.loads(responses.decode())
+        responses = await self.async_client.feature_extraction(texts, **_model_kwargs)
+        return responses.tolist()
 
     def embed_query(self, text: str) -> List[float]:
         """Call out to HuggingFaceHub's embedding endpoint for embedding query text.
